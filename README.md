@@ -106,6 +106,7 @@ Make Roo Code work your way with:
 - [Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes) for specialized tasks
 - [Local Models](https://docs.roocode.com/advanced-usage/local-models) for offline use
 - [Auto-Approval Settings](https://docs.roocode.com/advanced-usage/auto-approving-actions) for faster workflows
+- **Rule Files**: Place `.roorules` (recommended) or `.clinerules` in your project root for global rules, or `.roorules-{mode}`/`.clinerules-{mode}` for mode-specific rules
 
 ## Resources
 

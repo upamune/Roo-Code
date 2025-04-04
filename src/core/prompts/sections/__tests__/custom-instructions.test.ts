@@ -185,6 +185,46 @@ describe("addCustomInstructions", () => {
 		}).rejects.toThrow()
 	})
 
+	it("should prioritize .roorules-{mode} over .clinerules-{mode}", async () => {
+		mockedFs.readFile.mockImplementation(((filePath: string) => {
+			if (filePath.endsWith(".roorules-test-mode")) {
+				return Promise.resolve("roo mode rules")
+			}
+			if (filePath.endsWith(".clinerules-test-mode")) {
+				return Promise.resolve("cline mode rules")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		}) as any)
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+		)
+
+		expect(result).toContain("Rules from .roorules-test-mode")
+		expect(result).not.toContain("Rules from .clinerules-test-mode")
+	})
+
+	it("should fall back to .clinerules-{mode} when .roorules-{mode} doesn't exist", async () => {
+		mockedFs.readFile.mockImplementation(((filePath: string) => {
+			if (filePath.endsWith(".clinerules-test-mode")) {
+				return Promise.resolve("cline mode rules")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		}) as any)
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+		)
+
+		expect(result).toContain("Rules from .clinerules-test-mode")
+	})
+
 	it("should skip mode-specific rule files that are directories", async () => {
 		mockedFs.readFile.mockImplementation(((filePath: string | Buffer | URL | number) => {
 			if (filePath.toString().includes(".clinerules-test-mode")) {
