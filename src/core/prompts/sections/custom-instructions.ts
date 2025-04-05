@@ -17,7 +17,7 @@ async function safeReadFile(filePath: string): Promise<string> {
 }
 
 export async function loadRuleFiles(cwd: string): Promise<string> {
-	const ruleFiles = [".roorules", ".clinerules", ".cursorrules", ".windsurfrules"]
+	const ruleFiles = [".roorules", ".clinerules"]
 	let combinedRules = ""
 
 	for (const file of ruleFiles) {

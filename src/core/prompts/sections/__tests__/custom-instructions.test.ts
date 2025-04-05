@@ -15,10 +15,7 @@ describe("loadRuleFiles", () => {
 		const result = await loadRuleFiles("/fake/path")
 		expect(mockedFs.readFile).toHaveBeenCalled()
 		expect(result).toBe(
-			"\n# Rules from .roorules:\ncontent with spaces\n" +
-				"\n# Rules from .clinerules:\ncontent with spaces\n" +
-				"\n# Rules from .cursorrules:\ncontent with spaces\n" +
-				"\n# Rules from .windsurfrules:\ncontent with spaces\n",
+			"\n# Rules from .roorules:\ncontent with spaces\n" + "\n# Rules from .clinerules:\ncontent with spaces\n",
 		)
 	})
 
@@ -58,17 +55,12 @@ describe("loadRuleFiles", () => {
 			if (filePath.toString().endsWith(".clinerules")) {
 				return Promise.resolve("cline rules content")
 			}
-			if (filePath.toString().endsWith(".cursorrules")) {
-				return Promise.resolve("cursor rules content")
-			}
 			return Promise.reject({ code: "ENOENT" })
 		}) as any)
 
 		const result = await loadRuleFiles("/fake/path")
 		expect(result).toBe(
-			"\n# Rules from .roorules:\nroo rules content\n" +
-				"\n# Rules from .clinerules:\ncline rules content\n" +
-				"\n# Rules from .cursorrules:\ncursor rules content\n",
+			"\n# Rules from .roorules:\nroo rules content\n" + "\n# Rules from .clinerules:\ncline rules content\n",
 		)
 	})
 
@@ -97,14 +89,11 @@ describe("loadRuleFiles", () => {
 			if (filePath.toString().endsWith(".clinerules")) {
 				return Promise.reject({ code: "EISDIR" })
 			}
-			if (filePath.toString().endsWith(".cursorrules")) {
-				return Promise.resolve("cursor rules content")
-			}
 			return Promise.reject({ code: "ENOENT" })
 		}) as any)
 
 		const result = await loadRuleFiles("/fake/path")
-		expect(result).toBe("\n# Rules from .cursorrules:\ncursor rules content\n")
+		expect(result).toBe("")
 	})
 })
 
