@@ -14,9 +14,7 @@ describe("loadRuleFiles", () => {
 		mockedFs.readFile.mockResolvedValue("  content with spaces  ")
 		const result = await loadRuleFiles("/fake/path")
 		expect(mockedFs.readFile).toHaveBeenCalled()
-		expect(result).toBe(
-			"\n# Rules from .roorules:\ncontent with spaces\n" + "\n# Rules from .clinerules:\ncontent with spaces\n",
-		)
+		expect(result).toBe("\n# Rules from .roorules:\ncontent with spaces\n")
 	})
 
 	it("should handle ENOENT error", async () => {
@@ -47,7 +45,7 @@ describe("loadRuleFiles", () => {
 		jest.clearAllMocks()
 	})
 
-	it("should combine content from multiple rule files when they exist", async () => {
+	it("should not combine content from multiple rule files when they exist", async () => {
 		mockedFs.readFile.mockImplementation(((filePath: string | Buffer | URL | number) => {
 			if (filePath.toString().endsWith(".roorules")) {
 				return Promise.resolve("roo rules content")
@@ -59,9 +57,7 @@ describe("loadRuleFiles", () => {
 		}) as any)
 
 		const result = await loadRuleFiles("/fake/path")
-		expect(result).toBe(
-			"\n# Rules from .roorules:\nroo rules content\n" + "\n# Rules from .clinerules:\ncline rules content\n",
-		)
+		expect(result).toBe("\n# Rules from .roorules:\nroo rules content\n")
 	})
 
 	it("should handle when no rule files exist", async () => {

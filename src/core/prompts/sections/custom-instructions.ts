@@ -18,16 +18,15 @@ async function safeReadFile(filePath: string): Promise<string> {
 
 export async function loadRuleFiles(cwd: string): Promise<string> {
 	const ruleFiles = [".roorules", ".clinerules"]
-	let combinedRules = ""
 
 	for (const file of ruleFiles) {
 		const content = await safeReadFile(path.join(cwd, file))
 		if (content) {
-			combinedRules += `\n# Rules from ${file}:\n${content}\n`
+			return `\n# Rules from ${file}:\n${content}\n`
 		}
 	}
 
-	return combinedRules
+	return ""
 }
 
 export async function addCustomInstructions(
