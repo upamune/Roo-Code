@@ -792,7 +792,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												// Open or create an empty file
 												vscode.postMessage({
 													type: "openFile",
-													text: `./.clinerules-${currentMode.slug}`,
+													text: `./.roorules-${currentMode.slug}`,
 													values: {
 														create: true,
 														content: "",
@@ -928,7 +928,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 										onClick={() =>
 											vscode.postMessage({
 												type: "openFile",
-												text: "./.clinerules",
+												text: "./.roorules",
 												values: {
 													create: true,
 													content: "",
