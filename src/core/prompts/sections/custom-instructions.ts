@@ -70,13 +70,14 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 function formatDirectoryContent(dirPath: string, files: Array<{ filename: string; content: string }>): string {
 	if (files.length === 0) return ""
 
-	const formattedContent = files
-		.map((file) => {
-			return `# Filename: ${file.filename}\n${file.content}`
-		})
-		.join("\n\n")
-
-	return `\n# Rules from ${path.relative(process.cwd(), dirPath)}:\n${formattedContent}\n`
+	return (
+		"\n\n" +
+		files
+			.map((file) => {
+				return `# Rules from ${file.filename}:\n${file.content}:`
+			})
+			.join("\n\n")
+	)
 }
 
 /**

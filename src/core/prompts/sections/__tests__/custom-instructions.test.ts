@@ -149,10 +149,9 @@ describe("loadRuleFiles", () => {
 		})
 
 		const result = await loadRuleFiles("/fake/path")
-		expect(result).toContain("# Rules from /fake/path/.roo/rules")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules/file1.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/file1.txt:")
 		expect(result).toContain("content of file1")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules/file2.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/file2.txt:")
 		expect(result).toContain("content of file2")
 
 		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules/file1.txt")
@@ -352,9 +351,9 @@ describe("addCustomInstructions", () => {
 		)
 
 		expect(result).toContain("# Rules from /fake/path/.roo/rules-test-mode")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules-test-mode/rule1.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules-test-mode/rule1.txt:")
 		expect(result).toContain("mode specific rule 1")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules-test-mode/rule2.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules-test-mode/rule2.txt:")
 		expect(result).toContain("mode specific rule 2")
 
 		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules-test-mode/rule1.txt")
@@ -457,7 +456,7 @@ describe("addCustomInstructions", () => {
 		)
 
 		expect(result).toContain("# Rules from /fake/path/.roo/rules-test-mode")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules-test-mode/rule1.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules-test-mode/rule1.txt:")
 		expect(result).toContain("mode specific rule content")
 
 		expect(statCallCount).toBeGreaterThan(0)
@@ -548,12 +547,11 @@ describe("Rules directory reading", () => {
 
 		const result = await loadRuleFiles("/fake/path")
 
-		expect(result).toContain("# Rules from /fake/path/.roo/rules")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules/file1.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/file1.txt:")
 		expect(result).toContain("content of file1")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules/file2.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/file2.txt:")
 		expect(result).toContain("content of file2")
-		expect(result).toContain("# Filename: /fake/path/.roo/rules/file3.txt")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/file3.txt:")
 		expect(result).toContain("content of file3")
 	})
 
