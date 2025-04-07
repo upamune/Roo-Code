@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "進階：覆寫系統提示詞",
-		"description": "您可以透過在工作區的 <span>.roo/system-prompts/{{slug}}/</span> 資料夾中建立檔案來完全替換此模式的系統提示詞（角色定義和自訂指令除外）。這是一個非常進階的功能，會繞過內建的安全措施和一致性檢查（尤其是與工具使用相關的檢查），請謹慎使用！"
+		"description": "您可以透過在工作區建立檔案 <span>.roo/system-prompt-{{slug}}</span> 來完全替換此模式的系統提示詞（角色定義和自訂指令除外）。這是一個非常進階的功能，會繞過內建的安全措施和一致性檢查（尤其是與工具使用相關的檢查），請謹慎使用！"
 	},
 	"createModeDialog": {
 		"title": "建立新模式",

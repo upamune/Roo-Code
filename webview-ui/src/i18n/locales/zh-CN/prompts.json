@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "高级：覆盖系统提示词",
-		"description": "您可以通过在工作区<span>.roo/system-prompts/{{slug}}/</span>目录中创建文件，完全替换此模式的系统提示（角色定义和自定义指令除外）。这是一个非常高级的功能，会绕过内置的安全措施和一致性检查（尤其是与工具使用相关的部分），请谨慎操作！"
+		"description": "您可以通过在工作区创建文件 <span>.roo/system-prompt-{{slug}}</span>，完全替换此模式的系统提示（角色定义和自定义指令除外）。这是一个非常高级的功能，会绕过内置的安全措施和一致性检查（尤其是与工具使用相关的部分），请谨慎操作！"
 	},
 	"createModeDialog": {
 		"title": "创建新模式",
