@@ -43,12 +43,11 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 
 		const fileContents = await Promise.all(
 			files.map(async (file) => {
-				const filePath = path.join(dirPath, file)
 				try {
 					// Check if it's a file (not a directory)
-					const stats = await fs.stat(filePath)
+					const stats = await fs.stat(file)
 					if (stats.isFile()) {
-						const content = await safeReadFile(filePath)
+						const content = await safeReadFile(file)
 						return { filename: file, content }
 					}
 					return null

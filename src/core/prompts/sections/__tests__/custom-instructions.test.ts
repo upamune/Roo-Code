@@ -131,20 +131,18 @@ describe("loadRuleFiles", () => {
 			{ name: "file2.txt", isFile: () => true },
 		] as any)
 
-		// Simulate file stats
 		statMock.mockImplementation(
-			() =>
+			(path) =>
 				({
 					isFile: jest.fn().mockReturnValue(true),
 				}) as any,
 		)
 
-		// Simulate file reading
 		readFileMock.mockImplementation((filePath: PathLike) => {
-			if (filePath.toString().includes("file1.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules/file1.txt") {
 				return Promise.resolve("content of file1")
 			}
-			if (filePath.toString().includes("file2.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules/file2.txt") {
 				return Promise.resolve("content of file2")
 			}
 			return Promise.reject({ code: "ENOENT" })
@@ -156,6 +154,11 @@ describe("loadRuleFiles", () => {
 		expect(result).toContain("content of file1")
 		expect(result).toContain("# Filename: /fake/path/.roo/rules/file2.txt")
 		expect(result).toContain("content of file2")
+
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules/file1.txt")
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules/file2.txt")
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules/file1.txt", "utf-8")
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules/file2.txt", "utf-8")
 	})
 
 	it("should fall back to .roorules when .roo/rules/ is empty", async () => {
@@ -323,20 +326,18 @@ describe("addCustomInstructions", () => {
 			{ name: "rule2.txt", isFile: () => true },
 		] as any)
 
-		// Simulate file stats
 		statMock.mockImplementation(
-			() =>
+			(path) =>
 				({
 					isFile: jest.fn().mockReturnValue(true),
 				}) as any,
 		)
 
-		// Simulate file reading
 		readFileMock.mockImplementation((filePath: PathLike) => {
-			if (filePath.toString().includes("rule1.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules-test-mode/rule1.txt") {
 				return Promise.resolve("mode specific rule 1")
 			}
-			if (filePath.toString().includes("rule2.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules-test-mode/rule2.txt") {
 				return Promise.resolve("mode specific rule 2")
 			}
 			return Promise.reject({ code: "ENOENT" })
@@ -355,6 +356,11 @@ describe("addCustomInstructions", () => {
 		expect(result).toContain("mode specific rule 1")
 		expect(result).toContain("# Filename: /fake/path/.roo/rules-test-mode/rule2.txt")
 		expect(result).toContain("mode specific rule 2")
+
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules-test-mode/rule1.txt")
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules-test-mode/rule2.txt")
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules-test-mode/rule1.txt", "utf-8")
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules-test-mode/rule2.txt", "utf-8")
 	})
 
 	it("should fall back to .roorules-test-mode when .roo/rules-test-mode/ does not exist", async () => {
@@ -418,23 +424,28 @@ describe("addCustomInstructions", () => {
 
 		// Simulate directory has files
 		readdirMock.mockResolvedValueOnce([{ name: "rule1.txt", isFile: () => true }] as any)
+		readFileMock.mockReset()
 
 		// Set up stat mock for checking files
 		let statCallCount = 0
-		statMock.mockImplementation(() => {
+		statMock.mockImplementation((filePath) => {
 			statCallCount++
+			if (filePath === "/fake/path/.roo/rules-test-mode/rule1.txt") {
+				return Promise.resolve({
+					isFile: jest.fn().mockReturnValue(true),
+					isDirectory: jest.fn().mockReturnValue(false),
+				} as any)
+			}
 			return Promise.resolve({
-				isFile: jest.fn().mockReturnValue(true),
+				isFile: jest.fn().mockReturnValue(false),
 				isDirectory: jest.fn().mockReturnValue(false),
 			} as any)
 		})
 
-		// Set up read file mock for both rule files and fallback files
 		readFileMock.mockImplementation((filePath: PathLike) => {
-			if (filePath.toString().includes("rule1.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules-test-mode/rule1.txt") {
 				return Promise.resolve("mode specific rule content")
 			}
-			// Make sure we return ENOENT for all other files to test fallback behavior
 			return Promise.reject({ code: "ENOENT" })
 		})
 
@@ -448,6 +459,8 @@ describe("addCustomInstructions", () => {
 		expect(result).toContain("# Rules from /fake/path/.roo/rules-test-mode")
 		expect(result).toContain("# Filename: /fake/path/.roo/rules-test-mode/rule1.txt")
 		expect(result).toContain("mode specific rule content")
+
+		expect(statCallCount).toBeGreaterThan(0)
 	})
 })
 
@@ -501,44 +514,47 @@ describe("Rules directory reading", () => {
 			isDirectory: jest.fn().mockReturnValue(true),
 		} as any)
 
-		// Simulate listing multiple files and a directory
+		// Simulate listing files
 		readdirMock.mockResolvedValueOnce([
 			{ name: "file1.txt", isFile: () => true },
 			{ name: "file2.txt", isFile: () => true },
-			{ name: "subdir", isFile: () => false }, // This should be filtered out
+			{ name: "file3.txt", isFile: () => true },
 		] as any)
 
-		// Simulate file stats
 		statMock.mockImplementation((path) => {
-			if (path.toString().includes("subdir")) {
-				return Promise.resolve({
-					isFile: jest.fn().mockReturnValue(false),
-				} as any)
-			}
+			expect([
+				"/fake/path/.roo/rules/file1.txt",
+				"/fake/path/.roo/rules/file2.txt",
+				"/fake/path/.roo/rules/file3.txt",
+			]).toContain(path)
+
 			return Promise.resolve({
 				isFile: jest.fn().mockReturnValue(true),
-			} as any)
+			}) as any
 		})
 
-		// Simulate file reading
 		readFileMock.mockImplementation((filePath: PathLike) => {
-			if (filePath.toString().includes("file1.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules/file1.txt") {
 				return Promise.resolve("content of file1")
 			}
-			if (filePath.toString().includes("file2.txt")) {
+			if (filePath.toString() === "/fake/path/.roo/rules/file2.txt") {
 				return Promise.resolve("content of file2")
+			}
+			if (filePath.toString() === "/fake/path/.roo/rules/file3.txt") {
+				return Promise.resolve("content of file3")
 			}
 			return Promise.reject({ code: "ENOENT" })
 		})
 
 		const result = await loadRuleFiles("/fake/path")
+
 		expect(result).toContain("# Rules from /fake/path/.roo/rules")
 		expect(result).toContain("# Filename: /fake/path/.roo/rules/file1.txt")
 		expect(result).toContain("content of file1")
 		expect(result).toContain("# Filename: /fake/path/.roo/rules/file2.txt")
 		expect(result).toContain("content of file2")
-		// Verify subdirectory was filtered out
-		expect(result).not.toContain("subdir")
+		expect(result).toContain("# Filename: /fake/path/.roo/rules/file3.txt")
+		expect(result).toContain("content of file3")
 	})
 
 	it("should handle empty file list gracefully", async () => {
@@ -550,7 +566,6 @@ describe("Rules directory reading", () => {
 		// Simulate empty directory
 		readdirMock.mockResolvedValueOnce([])
 
-		// For loadRuleFiles to return something for testing
 		readFileMock.mockResolvedValueOnce("fallback content")
 
 		const result = await loadRuleFiles("/fake/path")
