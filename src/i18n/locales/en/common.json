@@ -89,5 +89,29 @@
 	"input": {
 		"task_prompt": "What should Roo do?",
 		"task_placeholder": "Type your task here"
+	},
+	"mode": {
+		"no_workspace": "Please open a project folder first",
+		"no_roomodes": "No .roomodes file found in the current workspace",
+		"migration_skip": "Skipping mode with invalid slug: {{slug}}",
+		"migration_success": "Successfully migrated {{count}} mode(s) to YAML format",
+		"migration_none": "No modes were migrated",
+		"migration_error": "Error migrating modes: {{message}}",
+		"migration_error_with_details": "Error migrating modes: {{message}}. {{details}}",
+		"migration_error_syntax": "The .roomodes file contains invalid JSON syntax. Please check the file format.",
+		"migration_error_file_not_found": "The specified file was not found. Please check the file path.",
+		"migration_error_permission": "Permission denied when accessing the file or directory.",
+		"migration_error_is_directory": "Expected a file but found a directory.",
+		"migration_error_not_directory": "Expected a directory but found a file.",
+		"schema_regenerated": "Mode schema regenerated successfully at {{path}}",
+		"schema_error": "Error regenerating mode schema: {{message}}",
+		"schema_error_with_details": "Error regenerating mode schema: {{message}}. {{details}}",
+		"schema_error_syntax": "The schema contains invalid syntax. Please check the format.",
+		"schema_error_file_not_found": "The specified file was not found. Please check the file path.",
+		"schema_error_permission": "Permission denied when accessing the file or directory.",
+		"schema_error_is_directory": "Expected a file but found a directory.",
+		"schema_error_not_directory": "Expected a directory but found a file.",
+		"schema_error_too_many_files": "Too many open files. Try closing some applications.",
+		"schema_error_no_space": "No space left on device. Free up some disk space."
 	}
 }

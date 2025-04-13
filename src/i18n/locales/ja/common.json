@@ -89,5 +89,29 @@
 	"input": {
 		"task_prompt": "Rooにどんなことをさせますか？",
 		"task_placeholder": "タスクをここに入力してください"
+	},
+	"mode": {
+		"no_workspace": "まずプロジェクトフォルダを開いてください",
+		"no_roomodes": "現在のワークスペースに.roomodesファイルが見つかりません",
+		"migration_skip": "無効なスラッグを持つモードをスキップします：{{slug}}",
+		"migration_success": "{{count}}個のモードをYAML形式に正常に移行しました",
+		"migration_none": "移行されたモードはありません",
+		"migration_error": "モードの移行中にエラーが発生しました：{{message}}",
+		"migration_error_with_details": "モードの移行中にエラーが発生しました：{{message}}。{{details}}",
+		"migration_error_syntax": ".roomodesファイルに無効なJSON構文が含まれています。ファイル形式を確認してください。",
+		"migration_error_file_not_found": "指定されたファイルが見つかりません。ファイルパスを確認してください。",
+		"migration_error_permission": "ファイルまたはディレクトリへのアクセス権限がありません。",
+		"migration_error_is_directory": "ファイルを期待していましたが、ディレクトリが見つかりました。",
+		"migration_error_not_directory": "ディレクトリを期待していましたが、ファイルが見つかりました。",
+		"schema_regenerated": "モードスキーマが{{path}}に正常に再生成されました",
+		"schema_error": "モードスキーマの再生成中にエラーが発生しました：{{message}}",
+		"schema_error_with_details": "モードスキーマの再生成中にエラーが発生しました：{{message}}。{{details}}",
+		"schema_error_syntax": "スキーマに無効な構文が含まれています。フォーマットを確認してください。",
+		"schema_error_file_not_found": "指定されたファイルが見つかりません。ファイルパスを確認してください。",
+		"schema_error_permission": "ファイルまたはディレクトリへのアクセス権限がありません。",
+		"schema_error_is_directory": "ファイルを期待していましたが、ディレクトリが見つかりました。",
+		"schema_error_not_directory": "ディレクトリを期待していましたが、ファイルが見つかりました。",
+		"schema_error_too_many_files": "開いているファイルが多すぎます。いくつかのアプリケーションを閉じてみてください。",
+		"schema_error_no_space": "デバイスに空き容量がありません。ディスク容量を確保してください。"
 	}
 }

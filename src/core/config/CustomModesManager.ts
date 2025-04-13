@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { customModesSettingsSchema } from "../../schemas"
+import { customModesSettingsSchema, GroupEntry, ToolGroup } from "../../schemas"
 import { ModeConfig } from "../../shared/modes"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getWorkspacePath } from "../../utils/path"
@@ -126,110 +126,206 @@ export class CustomModesManager {
 	}
 
 	private async watchCustomModesFiles(): Promise<void> {
+		// Import necessary functions from modeConfig.ts
+		const { loadAllModes } = await import("../../services/modeConfig")
 		const settingsPath = await this.getCustomModesFilePath()
+		const workspaceRoot = getWorkspacePath()
 
-		// Watch settings file
+		// Function to refresh all modes with the correct priority
+		const refreshAllModes = async () => {
+			try {
+				// Load all modes from all sources with the correct priority:
+				// 1. Project YAML modes (.roo/modes/*.yaml) - highest priority
+				// 2. Project .roomodes modes
+				// 3. Global YAML modes (.roo/modes/*.yaml)
+				// 4. Global .roomodes modes - lowest priority
+				const allModes = await loadAllModes(this.context, workspaceRoot)
+
+				// Convert Map to array for storage
+				const modesArray = Array.from(allModes.values())
+
+				// Update global state with merged modes
+				await this.context.globalState.update("customModes", modesArray)
+				await this.onUpdate()
+			} catch (error) {
+				console.error("Error refreshing modes:", error)
+				vscode.window.showErrorMessage(
+					`モードの更新中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}
+
+		// Watch global settings file (.roomodes)
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const content = await fs.readFile(settingsPath, "utf-8")
-					const errorMessage =
-						"Invalid custom modes format. Please ensure your settings follow the correct JSON format."
-
-					let config: any
-					try {
-						config = JSON.parse(content)
-					} catch (error) {
-						console.error(error)
-						vscode.window.showErrorMessage(errorMessage)
-						return
-					}
-
-					const result = customModesSettingsSchema.safeParse(config)
-
-					if (!result.success) {
-						vscode.window.showErrorMessage(errorMessage)
-						return
-					}
-
-					// Get modes from .roomodes if it exists (takes precedence)
-					const roomodesPath = await this.getWorkspaceRoomodes()
-					const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
-
-					// Merge modes from both sources (.roomodes takes precedence)
-					const mergedModes = await this.mergeCustomModes(roomodesModes, result.data.customModes)
-					await this.context.globalState.update("customModes", mergedModes)
-					await this.onUpdate()
+					await refreshAllModes()
 				}
 			}),
 		)
 
-		// Watch .roomodes file if it exists
+		// Watch project .roomodes file if it exists
 		const roomodesPath = await this.getWorkspaceRoomodes()
 		if (roomodesPath) {
 			this.disposables.push(
 				vscode.workspace.onDidSaveTextDocument(async (document) => {
 					if (arePathsEqual(document.uri.fsPath, roomodesPath)) {
-						const settingsModes = await this.loadModesFromFile(settingsPath)
-						const roomodesModes = await this.loadModesFromFile(roomodesPath)
-						// .roomodes takes precedence
-						const mergedModes = await this.mergeCustomModes(roomodesModes, settingsModes)
-						await this.context.globalState.update("customModes", mergedModes)
-						await this.onUpdate()
+						await refreshAllModes()
 					}
 				}),
 			)
 		}
+
+		// Watch project .roo/modes directory for YAML files
+		const projectModesDir = path.join(workspaceRoot, ".roo", "modes")
+		if (await this.directoryExists(projectModesDir)) {
+			this.disposables.push(
+				vscode.workspace.onDidSaveTextDocument(async (document) => {
+					if (document.uri.fsPath.startsWith(projectModesDir) && document.uri.fsPath.endsWith(".yaml")) {
+						await refreshAllModes()
+					}
+				}),
+			)
+		}
+
+		// Watch global .roo/modes directory for YAML files
+		const globalModesDir = path.join(this.context.globalStorageUri.fsPath, "modes")
+		if (await this.directoryExists(globalModesDir)) {
+			this.disposables.push(
+				vscode.workspace.onDidSaveTextDocument(async (document) => {
+					if (document.uri.fsPath.startsWith(globalModesDir) && document.uri.fsPath.endsWith(".yaml")) {
+						await refreshAllModes()
+					}
+				}),
+			)
+		}
+
+		// Initial load of all modes
+		await refreshAllModes()
+	}
+
+	// Helper method to check if a directory exists
+	private async directoryExists(dirPath: string): Promise<boolean> {
+		try {
+			const stats = await fs.stat(dirPath)
+			return stats.isDirectory()
+		} catch (error) {
+			return false
+		}
 	}
 
 	async getCustomModes(): Promise<ModeConfig[]> {
-		// Get modes from settings file
-		const settingsPath = await this.getCustomModesFilePath()
-		const settingsModes = await this.loadModesFromFile(settingsPath)
+		// Import loadAllModes function from modeConfig.ts
+		const { loadAllModes } = await import("../../services/modeConfig")
+		const workspaceRoot = getWorkspacePath()
 
-		// Get modes from .roomodes if it exists
-		const roomodesPath = await this.getWorkspaceRoomodes()
-		const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
+		try {
+			// Load all modes from all sources with the correct priority:
+			// 1. Project YAML modes (.roo/modes/*.yaml) - highest priority
+			// 2. Project .roomodes modes
+			// 3. Global YAML modes (.roo/modes/*.yaml)
+			// 4. Global .roomodes modes - lowest priority
+			const allModes = await loadAllModes(this.context, workspaceRoot)
 
-		// Create maps to store modes by source
-		const projectModes = new Map<string, ModeConfig>()
-		const globalModes = new Map<string, ModeConfig>()
+			// Convert Map to array for storage and return
+			const modesArray = Array.from(allModes.values())
 
-		// Add project modes (they take precedence)
-		for (const mode of roomodesModes) {
-			projectModes.set(mode.slug, { ...mode, source: "project" as const })
+			// Convert the ModeConfig from modeSchemas.ts to the format expected by CustomModesManager
+			const convertedModes = modesArray.map((mode) => {
+				// Convert groups from Record<string, GroupOptions | undefined> to array format
+				const groups: GroupEntry[] = []
+				for (const [groupName, options] of Object.entries(mode.groups)) {
+					if (options) {
+						groups.push([groupName as ToolGroup, options])
+					} else {
+						groups.push(groupName as ToolGroup)
+					}
+				}
+
+				// Return the converted mode
+				return {
+					slug: mode.slug,
+					name: mode.name,
+					roleDefinition: mode.roleDefinition,
+					customInstructions: mode.customInstructions,
+					groups,
+					source: mode.source,
+				}
+			})
+
+			// Update global state with merged modes
+			await this.context.globalState.update("customModes", convertedModes)
+			return convertedModes
+		} catch (error) {
+			console.error("Error loading custom modes:", error)
+			vscode.window.showErrorMessage(
+				`モードの読み込み中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`,
+			)
+
+			// Return empty array in case of error
+			return []
 		}
-
-		// Add global modes
-		for (const mode of settingsModes) {
-			if (!projectModes.has(mode.slug)) {
-				globalModes.set(mode.slug, { ...mode, source: "global" as const })
-			}
-		}
-
-		// Combine modes in the correct order: project modes first, then global modes
-		const mergedModes = [
-			...roomodesModes.map((mode) => ({ ...mode, source: "project" as const })),
-			...settingsModes
-				.filter((mode) => !projectModes.has(mode.slug))
-				.map((mode) => ({ ...mode, source: "global" as const })),
-		]
-
-		await this.context.globalState.update("customModes", mergedModes)
-		return mergedModes
 	}
 	async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
 		try {
 			const isProjectMode = config.source === "project"
 			let targetPath: string
 
-			if (isProjectMode) {
-				const workspaceFolders = vscode.workspace.workspaceFolders
-				if (!workspaceFolders || workspaceFolders.length === 0) {
-					logger.error("Failed to update project mode: No workspace folder found", { slug })
-					throw new Error("No workspace folder found for project-specific mode")
+			// 新規モードの場合は常に.roo/modes配下に保存する
+			const workspaceFolders = vscode.workspace.workspaceFolders
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				logger.error("Failed to update project mode: No workspace folder found", { slug })
+				throw new Error("No workspace folder found for project-specific mode")
+			}
+			const workspaceRoot = getWorkspacePath()
+
+			// 新規モードの場合は.roo/modes配下に保存する
+			// 既存のモードの場合は元の場所に保存する
+			const existingModes = await this.getCustomModes()
+			const existingMode = existingModes.find((m) => m.slug === slug)
+
+			if (!existingMode) {
+				// 新規モードの場合は.roo/modes配下に保存する
+				// 新規モードの場合は.roo/modes配下に保存する
+				const { createNewMode } = await import("../../services/modeConfig")
+
+				// groups配列をRecord形式に変換
+				const groups: Record<string, { fileRegex?: string; description?: string } | undefined> = {}
+
+				// configのgroupsが配列であることを確認
+				const groupsArray = Array.isArray(config.groups) ? config.groups : []
+
+				for (const entry of groupsArray) {
+					if (typeof entry === "string") {
+						// Simple group without options
+						groups[entry] = undefined
+					} else if (Array.isArray(entry) && entry.length >= 2) {
+						// Group with options [name, options]
+						groups[entry[0]] = entry[1]
+					}
 				}
-				const workspaceRoot = getWorkspacePath()
+
+				// 新規モードを作成
+				createNewMode(
+					{
+						slug,
+						name: config.name || slug,
+						roleDefinition: config.roleDefinition || "",
+						customInstructions: config.customInstructions,
+						groups,
+						source: "project",
+						origin: "yaml",
+					},
+					workspaceRoot,
+				)
+
+				// 状態を更新
+				await this.refreshMergedState()
+				return
+			}
+
+			// 既存のモードの場合は元の場所に保存する
+			if (isProjectMode) {
 				targetPath = path.join(workspaceRoot, ROOMODES_FILENAME)
 				const exists = await fileExistsAtPath(targetPath)
 				logger.info(`${exists ? "Updating" : "Creating"} project mode in ${ROOMODES_FILENAME}`, {
@@ -282,14 +378,9 @@ export class CustomModesManager {
 	}
 
 	private async refreshMergedState(): Promise<void> {
-		const settingsPath = await this.getCustomModesFilePath()
-		const roomodesPath = await this.getWorkspaceRoomodes()
-
-		const settingsModes = await this.loadModesFromFile(settingsPath)
-		const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
-		const mergedModes = await this.mergeCustomModes(roomodesModes, settingsModes)
-
-		await this.context.globalState.update("customModes", mergedModes)
+		// Use the same logic as getCustomModes to ensure consistency
+		const modes = await this.getCustomModes()
+		await this.context.globalState.update("customModes", modes)
 		await this.onUpdate()
 	}
 

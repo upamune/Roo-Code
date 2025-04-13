@@ -1,6 +1,8 @@
 import * as vscode from "vscode"
 import * as dotenvx from "@dotenvx/dotenvx"
 import * as path from "path"
+import { loadAllModes } from "./services/modeConfig"
+import { migrateRoomodes } from "./commands/migrateRoomodes"
 
 // Load environment variables from .env file
 try {
@@ -46,8 +48,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(outputChannel)
 	outputChannel.appendLine("Roo-Code extension activated")
 
+	// Get workspace root path
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+
 	// Migrate old settings to new
 	await migrateSettings(context, outputChannel)
+
+	// Load all modes if workspace is available
+	if (workspaceRoot) {
+		// Load all modes
+		const allModes = await loadAllModes(context, workspaceRoot)
+
+		// Save modes to context
+		context.globalState.update("rooModes", Array.from(allModes.values()))
+	}
 
 	// Initialize telemetry service after environment variables are loaded.
 	telemetryService.initialize()
@@ -76,6 +90,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	registerCommands({ context, outputChannel, provider })
+
+	// Register migrateRoomodes command
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.migrateRoomodes", () => migrateRoomodes(context)),
+	)
 
 	/**
 	 * We use the text document content provider API to show the left side for diff

@@ -179,6 +179,11 @@
 				"command": "roo-cline.focusInput",
 				"title": "Focus Input Field",
 				"category": "Roo Code"
+			},
+			{
+				"command": "roo-cline.migrateRoomodes",
+				"title": "Migrate .roomodes file to .roo/modes/ directory",
+				"category": "Roo Code"
 			}
 		],
 		"menus": {
@@ -392,7 +397,8 @@
 		"vscode-test:extension": "tsc -p . --outDir out && node esbuild.js",
 		"vscode-test:webview": "cd webview-ui && npm run build",
 		"update-contributors": "node scripts/update-contributors.js",
-		"generate-types": "tsx scripts/generate-types.mts"
+		"generate-types": "tsx scripts/generate-types.mts",
+		"generate-custom-modes-schema": "tsx scripts/generate-mode-schema.mts"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",
