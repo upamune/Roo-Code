@@ -31,7 +31,7 @@ export const groupEntryArraySchemaV1 = z.array(groupEntrySchemaV1).refine(
 )
 
 // V2 schema (YAML format - object based)
-export const groupsSchemaV2 = z.record(toolGroupsSchema, groupOptionsSchema.optional())
+export const groupsSchemaV2 = z.record(toolGroupsSchema, groupOptionsSchema.nullish())
 
 // Mode configuration input schema V1 (for JSON - backward compatibility)
 export const modeConfigInputSchemaV1 = z.object({
@@ -57,7 +57,7 @@ export type ModeConfig = {
 	name: string
 	roleDefinition: string
 	customInstructions?: string
-	groups: Record<string, GroupOptions | undefined>
+	groups: Record<string, GroupOptions | undefined | null>
 	source: "global" | "project" // Indicates where the mode was loaded from
 	origin: "yaml" | "json" // Indicates the original file format
 }

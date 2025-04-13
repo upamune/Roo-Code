@@ -290,7 +290,7 @@ export class CustomModesManager {
 				const { createNewMode } = await import("../../services/modeConfig")
 
 				// groups配列をRecord形式に変換
-				const groups: Record<string, { fileRegex?: string; description?: string } | undefined> = {}
+				const groups: Record<string, { fileRegex?: string; description?: string } | null> = {}
 
 				// configのgroupsが配列であることを確認
 				const groupsArray = Array.isArray(config.groups) ? config.groups : []
@@ -298,10 +298,10 @@ export class CustomModesManager {
 				for (const entry of groupsArray) {
 					if (typeof entry === "string") {
 						// Simple group without options
-						groups[entry] = undefined
+						groups[entry] = null
 					} else if (Array.isArray(entry) && entry.length >= 2) {
 						// Group with options [name, options]
-						groups[entry[0]] = entry[1]
+						groups[entry[0]] = entry[1] ?? null
 					}
 				}
 

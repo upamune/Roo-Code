@@ -332,7 +332,7 @@ function convertV1ToInternal(
 	origin: "yaml" | "json",
 ): ModeConfig {
 	// Convert groups from array format to object format
-	const groups: Record<string, GroupOptions | undefined> = {}
+	const groups: Record<string, GroupOptions | null> = {}
 
 	// Check if input.groups is an array
 	const groupsArray = Array.isArray(input.groups) ? input.groups : []
@@ -340,7 +340,7 @@ function convertV1ToInternal(
 	for (const entry of groupsArray) {
 		if (typeof entry === "string") {
 			// Simple group without options
-			groups[entry] = undefined
+			groups[entry] = null
 		} else if (Array.isArray(entry) && entry.length >= 2) {
 			// Group with options [name, options]
 			groups[entry[0]] = entry[1]
