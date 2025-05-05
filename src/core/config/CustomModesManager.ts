@@ -14,6 +14,8 @@ export class CustomModesManager {
 	private disposables: vscode.Disposable[] = []
 	private isWriting = false
 	private writeQueue: Array<() => Promise<void>> = []
+	private isUpdatingMode = false
+	private updatingModeSlug: string | null = null
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -124,7 +126,6 @@ export class CustomModesManager {
 		}
 		return filePath
 	}
-
 	private async watchCustomModesFiles(): Promise<void> {
 		// Import necessary functions from modeConfig.ts
 		const { loadAllModes } = await import("../../services/modeConfig")
@@ -132,7 +133,15 @@ export class CustomModesManager {
 		const workspaceRoot = getWorkspacePath()
 
 		// Function to refresh all modes with the correct priority
-		const refreshAllModes = async () => {
+		const refreshAllModes = async (changedFilePath?: string) => {
+			// モード更新中の場合はスキップ（変更の競合を防止）
+			if (this.isUpdatingMode) {
+				logger.info("Skipping mode refresh because a mode update is in progress", {
+					updatingSlug: this.updatingModeSlug,
+				})
+				return
+			}
+
 			try {
 				// Load all modes from all sources with the correct priority:
 				// 1. Project YAML modes (.roo/modes/*.yaml) - highest priority
@@ -159,7 +168,7 @@ export class CustomModesManager {
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					await refreshAllModes()
+					await refreshAllModes(document.uri.fsPath)
 				}
 			}),
 		)
@@ -170,7 +179,7 @@ export class CustomModesManager {
 			this.disposables.push(
 				vscode.workspace.onDidSaveTextDocument(async (document) => {
 					if (arePathsEqual(document.uri.fsPath, roomodesPath)) {
-						await refreshAllModes()
+						await refreshAllModes(document.uri.fsPath)
 					}
 				}),
 			)
@@ -182,7 +191,7 @@ export class CustomModesManager {
 			this.disposables.push(
 				vscode.workspace.onDidSaveTextDocument(async (document) => {
 					if (document.uri.fsPath.startsWith(projectModesDir) && document.uri.fsPath.endsWith(".yaml")) {
-						await refreshAllModes()
+						await refreshAllModes(document.uri.fsPath)
 					}
 				}),
 			)
@@ -194,7 +203,7 @@ export class CustomModesManager {
 			this.disposables.push(
 				vscode.workspace.onDidSaveTextDocument(async (document) => {
 					if (document.uri.fsPath.startsWith(globalModesDir) && document.uri.fsPath.endsWith(".yaml")) {
-						await refreshAllModes()
+						await refreshAllModes(document.uri.fsPath)
 					}
 				}),
 			)
@@ -267,6 +276,10 @@ export class CustomModesManager {
 		}
 	}
 	async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
+		// モード更新中フラグをセット
+		this.isUpdatingMode = true
+		this.updatingModeSlug = slug
+
 		try {
 			const isProjectMode = config.source === "project"
 			let targetPath: string
@@ -355,6 +368,12 @@ export class CustomModesManager {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			logger.error("Failed to update custom mode", { slug, error: errorMessage })
 			vscode.window.showErrorMessage(`Failed to update custom mode: ${errorMessage}`)
+		} finally {
+			// 処理完了後、少し遅延させてからフラグをリセット（ファイル変更イベントとの競合を防止）
+			setTimeout(() => {
+				this.isUpdatingMode = false
+				this.updatingModeSlug = null
+			}, 1000) // 遅延時間を1秒に延長
 		}
 	}
 	private async updateModesInFile(filePath: string, operation: (modes: ModeConfig[]) => ModeConfig[]): Promise<void> {
@@ -378,6 +397,15 @@ export class CustomModesManager {
 	}
 
 	private async refreshMergedState(): Promise<void> {
+		// 更新中のモードがある場合は、そのモードの更新が完了するまで待機
+		if (this.isUpdatingMode) {
+			logger.info("Waiting for mode update to complete before refreshing state", {
+				updatingSlug: this.updatingModeSlug,
+			})
+			// 更新中のモードがある場合は、そのモードの更新が完了するまで待機
+			await new Promise((resolve) => setTimeout(resolve, 500))
+		}
+
 		// Use the same logic as getCustomModes to ensure consistency
 		const modes = await this.getCustomModes()
 		await this.context.globalState.update("customModes", modes)

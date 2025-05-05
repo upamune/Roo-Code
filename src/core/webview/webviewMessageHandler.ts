@@ -1303,7 +1303,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 		case "updateCustomMode":
 			if (message.modeConfig) {
+				// モード更新中のフラグを設定
 				await provider.customModesManager.updateCustomMode(message.modeConfig.slug, message.modeConfig)
+
+				// 少し遅延してから状態を更新（ファイル変更イベントとの競合を防止）
+				await new Promise((resolve) => setTimeout(resolve, 500))
+
 				// Update state after saving the mode
 				const customModes = await provider.customModesManager.getCustomModes()
 				await updateGlobalState("customModes", customModes)
