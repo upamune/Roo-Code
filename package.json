@@ -376,6 +376,7 @@
 		"@types/tmp": "^0.2.6",
 		"@types/turndown": "^5.0.5",
 		"@types/vscode": "^1.95.0",
+		"@types/yaml": "^1.9.6",
 		"@vscode/codicons": "^0.0.36",
 		"axios": "^1.7.4",
 		"cheerio": "^1.0.0",
@@ -421,6 +422,7 @@
 		"vscode-material-icons": "^0.1.1",
 		"web-tree-sitter": "^0.22.6",
 		"workerpool": "^9.2.0",
+		"yaml": "^2.7.1",
 		"zod": "^3.23.8"
 	},
 	"devDependencies": {
