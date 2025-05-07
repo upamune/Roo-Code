@@ -286,6 +286,7 @@ type GlobalSettings = {
 					  ]
 				)[]
 				source?: ("global" | "project") | undefined
+				format?: ("yaml" | "json") | undefined
 		  }[]
 		| undefined
 	customModePrompts?:

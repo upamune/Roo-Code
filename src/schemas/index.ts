@@ -203,10 +203,10 @@ export const groupEntrySchema = z.union([toolGroupsSchema, z.tuple([toolGroupsSc
 export type GroupEntry = z.infer<typeof groupEntrySchema>
 
 /**
- * ModeConfig
+ * Group entry array schema (used in JSON format)
  */
 
-const groupEntryArraySchema = z.array(groupEntrySchema).refine(
+export const groupEntryArraySchema = z.array(groupEntrySchema).refine(
 	(groups) => {
 		const seen = new Set()
 
@@ -225,6 +225,59 @@ const groupEntryArraySchema = z.array(groupEntrySchema).refine(
 	{ message: "Duplicate groups are not allowed" },
 )
 
+/**
+ * Object format for groups (used in YAML format)
+ */
+
+export const groupsObjectSchema = z.record(
+	toolGroupsSchema, // Group name as key
+	z.union([
+		z.null(), // Simple group with no options
+		groupOptionsSchema, // Group with options
+	]),
+)
+
+/**
+ * Mode Config Input Schema that supports both formats
+ */
+
+export const modeConfigInputSchema = z.object({
+	name: z.string().min(1, "Name is required"),
+	roleDefinition: z.string().min(1, "Role definition is required"),
+	customInstructions: z.string().optional(),
+	// Support both array format (JSON) and object format (YAML)
+	groups: z
+		.union([
+			// JSON format: Array of group entries
+			groupEntryArraySchema,
+			// YAML format: Object with group names as keys
+			groupsObjectSchema,
+		])
+		.transform((groups) => {
+			// Normalize to array format for internal use
+			if (!Array.isArray(groups)) {
+				// Convert from object format to array format
+				const result: GroupEntry[] = []
+				for (const [groupName, options] of Object.entries(groups)) {
+					if (options === null) {
+						result.push(groupName as ToolGroup)
+					} else {
+						result.push([groupName as ToolGroup, options])
+					}
+				}
+				return result
+			}
+			return groups
+		})
+		.default([]),
+})
+
+export type ModeConfigInput = z.infer<typeof modeConfigInputSchema>
+
+/**
+ * ModeConfig
+ */
+
 export const modeConfigSchema = z.object({
 	slug: z.string().regex(/^[a-zA-Z0-9-]+$/, "Slug must contain only letters numbers and dashes"),
 	name: z.string().min(1, "Name is required"),
@@ -232,6 +285,7 @@ export const modeConfigSchema = z.object({
 	customInstructions: z.string().optional(),
 	groups: groupEntryArraySchema,
 	source: z.enum(["global", "project"]).optional(),
+	format: z.enum(["yaml", "json"]).optional(),
 })
 
 export type ModeConfig = z.infer<typeof modeConfigSchema>
@@ -973,4 +1027,39 @@ export const typeDefinitions: TypeDefinition[] = [
 ]
 
 // Also export as default for ESM compatibility
-export default { typeDefinitions }
+/**
+ * Utility functions for converting between array and object formats
+ */
+
+// Convert groups from array format to object format for YAML
+export function convertGroupsArrayToObject(groups: GroupEntry[]): Record<string, null | GroupOptions> {
+	const groupsObject: Record<string, null | GroupOptions> = {}
+
+	for (const group of groups) {
+		if (Array.isArray(group) && group.length === 2) {
+			const [groupName, options] = group
+			groupsObject[groupName] = options
+		} else if (typeof group === "string") {
+			groupsObject[group] = null
+		}
+	}
+
+	return groupsObject
+}
+
+// Convert groups from object format to array format for internal use
+export function convertGroupsObjectToArray(groups: Record<string, null | GroupOptions>): GroupEntry[] {
+	const result: GroupEntry[] = []
+
+	for (const [groupName, options] of Object.entries(groups)) {
+		if (options === null) {
+			result.push(groupName as ToolGroup)
+		} else {
+			result.push([groupName as ToolGroup, options])
+		}
+	}
+
+	return result
+}
+
+export default { typeDefinitions, modeConfigInputSchema }

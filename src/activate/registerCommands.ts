@@ -7,6 +7,7 @@ import { telemetryService } from "../services/telemetry/TelemetryService"
 
 import { registerHumanRelayCallback, unregisterHumanRelayCallback, handleHumanRelayResponse } from "./humanRelay"
 import { handleNewTask } from "./handleTask"
+import { migrateRoomodesCommand } from "../commands/migrateRoomodes"
 
 /**
  * Helper to get the visible ClineProvider instance or log if not found.
@@ -174,6 +175,7 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 
 			visibleProvider.postMessageToWebview({ type: "acceptInput" })
 		},
+		"roo-cline.migrateRoomodes": () => migrateRoomodesCommand(context),
 	}
 }
 

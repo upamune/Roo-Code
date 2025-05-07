@@ -1,12 +1,13 @@
 import * as vscode from "vscode"
-import * as path from "path"
-import * as fs from "fs/promises"
+import * as path from "node:path"
+import * as fs from "node:fs/promises"
 import { customModesSettingsSchema } from "../../schemas"
-import { ModeConfig } from "../../shared/modes"
+import type { ModeConfig } from "../../schemas/index"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getWorkspacePath } from "../../utils/path"
 import { logger } from "../../utils/logging"
 import { GlobalFileNames } from "../../shared/globalFileNames"
+import { YamlModesManager } from "./YamlModesManager"
 
 const ROOMODES_FILENAME = ".roomodes"
 
@@ -17,12 +18,16 @@ export class CustomModesManager {
 	private isWriting = false
 	private writeQueue: Array<() => Promise<void>> = []
 	private cachedModes: ModeConfig[] | null = null
-	private cachedAt: number = 0
+	private cachedAt = 0
+	private yamlModesManager: YamlModesManager
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly onUpdate: () => Promise<void>,
 	) {
+		// Initialize YAML modes manager
+		this.yamlModesManager = new YamlModesManager(context, onUpdate)
+
 		// TODO: We really shouldn't have async methods in the constructor.
 		this.watchCustomModesFiles()
 	}
@@ -203,29 +208,57 @@ export class CustomModesManager {
 		const roomodesPath = await this.getWorkspaceRoomodes()
 		const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
 
-		// Create maps to store modes by source.
-		const projectModes = new Map<string, ModeConfig>()
-		const globalModes = new Map<string, ModeConfig>()
+		// Get modes from YAML files
+		const yamlModes = await this.yamlModesManager.getYamlModes()
 
-		// Add project modes (they take precedence).
+		// Create maps to store modes by source and format.
+		const projectJsonModes = new Map<string, ModeConfig>()
+		const projectYamlModes = new Map<string, ModeConfig>()
+		const globalJsonModes = new Map<string, ModeConfig>()
+		const globalYamlModes = new Map<string, ModeConfig>()
+
+		// Add project JSON modes (.roomodes)
 		for (const mode of roomodesModes) {
-			projectModes.set(mode.slug, { ...mode, source: "project" as const })
+			projectJsonModes.set(mode.slug, { ...mode, source: "project", format: "json" })
 		}
 
-		// Add global modes.
+		// Add global JSON modes (settings file)
 		for (const mode of settingsModes) {
-			if (!projectModes.has(mode.slug)) {
-				globalModes.set(mode.slug, { ...mode, source: "global" as const })
+			globalJsonModes.set(mode.slug, { ...mode, source: "global", format: "json" })
+		}
+
+		// Add YAML modes (both project and global)
+		for (const mode of yamlModes) {
+			if (mode.source === "project") {
+				projectYamlModes.set(mode.slug, mode)
+			} else {
+				globalYamlModes.set(mode.slug, mode)
 			}
 		}
 
-		// Combine modes in the correct order: project modes first, then global modes.
-		const mergedModes = [
-			...roomodesModes.map((mode) => ({ ...mode, source: "project" as const })),
-			...settingsModes
-				.filter((mode) => !projectModes.has(mode.slug))
-				.map((mode) => ({ ...mode, source: "global" as const })),
-		]
+		// Combine modes with priority: project YAML > project JSON > global YAML > global JSON
+		const allSlugs = new Set<string>([
+			...projectYamlModes.keys(),
+			...projectJsonModes.keys(),
+			...globalYamlModes.keys(),
+			...globalJsonModes.keys(),
+		])
+
+		const mergedModes: ModeConfig[] = []
+
+		// Add modes in priority order
+		for (const slug of allSlugs) {
+			// Check in priority order
+			const mode =
+				projectYamlModes.get(slug) ||
+				projectJsonModes.get(slug) ||
+				globalYamlModes.get(slug) ||
+				globalJsonModes.get(slug)
+
+			if (mode) {
+				mergedModes.push(mode)
+			}
+		}
 
 		await this.context.globalState.update("customModes", mergedModes)
 
@@ -238,6 +271,15 @@ export class CustomModesManager {
 	public async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
 		try {
 			const isProjectMode = config.source === "project"
+			const preferYaml = config.format === "yaml" || !config.format // Default to YAML if not specified
+
+			// If YAML format is preferred, use YAML modes manager
+			if (preferYaml) {
+				await this.yamlModesManager.updateYamlMode(slug, config)
+				return
+			}
+
+			// Otherwise, use JSON format (legacy)
 			let targetPath: string
 
 			if (isProjectMode) {
@@ -265,6 +307,7 @@ export class CustomModesManager {
 				const modeWithSource = {
 					...config,
 					source: isProjectMode ? ("project" as const) : ("global" as const),
+					format: "json" as const,
 				}
 
 				await this.updateModesInFile(targetPath, (modes) => {
@@ -323,6 +366,24 @@ export class CustomModesManager {
 
 	public async deleteCustomMode(slug: string): Promise<void> {
 		try {
+			// Get all modes to determine where the mode exists
+			const allModes = await this.getCustomModes()
+			const mode = allModes.find((m) => m.slug === slug)
+
+			if (!mode) {
+				throw new Error("Mode not found")
+			}
+			if (mode.source === undefined) {
+				throw new Error("Mode source is undefined")
+			}
+
+			// If it's a YAML mode, use YAML modes manager
+			if (mode.format === "yaml") {
+				await this.yamlModesManager.deleteYamlMode(slug, mode.source)
+				return
+			}
+
+			// Otherwise, it's a JSON mode (legacy)
 			const settingsPath = await this.getCustomModesFilePath()
 			const roomodesPath = await this.getWorkspaceRoomodes()
 
@@ -390,5 +451,8 @@ export class CustomModesManager {
 		}
 
 		this.disposables = []
+
+		// Dispose YAML modes manager
+		this.yamlModesManager.dispose()
 	}
 }
