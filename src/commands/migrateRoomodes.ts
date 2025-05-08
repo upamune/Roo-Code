@@ -5,7 +5,6 @@ import { fileExistsAtPath } from "../utils/fs"
 import { saveModeAsYaml } from "../utils/yamlUtils"
 import type { ModeConfig } from "../schemas/index"
 import { logger } from "../utils/logging"
-import { getWorkspacePath } from "../utils/path"
 
 const ROOMODES_FILENAME = ".roomodes"
 
@@ -91,44 +90,5 @@ export async function migrateRoomodes(workspacePath: string): Promise<void> {
 		vscode.window.showErrorMessage(
 			`Error occurred during mode migration: ${error instanceof Error ? error.message : String(error)}`,
 		)
-	}
-}
-
-/**
- * Check if migration is needed and perform automatic migration
- * @param context VS Code extension context
- */
-export async function checkAndAutoMigrate(context: vscode.ExtensionContext): Promise<void> {
-	try {
-		const workspacePath = getWorkspacePath()
-		if (!workspacePath) {
-			return
-		}
-
-		const roomodesPath = path.join(workspacePath, ROOMODES_FILENAME)
-		const rooModesDir = path.join(workspacePath, ".roo", "modes")
-
-		// Check if .roomodes exists and .roo/modes/ doesn't exist
-		const roomodesExists = await fileExistsAtPath(roomodesPath)
-		const rooModesDirExists = await fileExistsAtPath(rooModesDir)
-
-		if (roomodesExists && !rooModesDirExists) {
-			// Ask user if they want to migrate
-			const answer = await vscode.window.showInformationMessage(
-				`Found ${ROOMODES_FILENAME} file. Would you like to migrate your custom modes to the new YAML format?`,
-				"Yes",
-				"No",
-				"Don't Ask Again",
-			)
-
-			if (answer === "Yes") {
-				await migrateRoomodes(workspacePath)
-			} else if (answer === "Don't Ask Again") {
-				// Store preference in global state
-				await context.globalState.update("dontAskMigration", true)
-			}
-		}
-	} catch (error) {
-		logger.error("Error in auto migration check:", error)
 	}
 }

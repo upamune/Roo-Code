@@ -175,7 +175,7 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 
 			visibleProvider.postMessageToWebview({ type: "acceptInput" })
 		},
-		"roo-cline.migrateRoomodes": () => migrateRoomodesCommand(context),
+		"roo.migrateRoomodes": () => migrateRoomodesCommand(context),
 	}
 }
 
