@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useCallback } from "react"
 
 type VoidFn = () => void
 
@@ -39,4 +39,56 @@ export function useDebounceEffect(effect: VoidFn, delay: number, deps: any[]) {
 
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [delay, ...deps])
+}
+
+/**
+ * Returns a debounced version of the callback that delays invoking `fn`
+ * until after `delay` milliseconds have elapsed since the last time it was invoked.
+ *
+ * @param fn The function to debounce
+ * @param delay The number of milliseconds to delay
+ * @returns A tuple containing the debounced function and a function to cancel the debounce
+ */
+export function useDebouncedCallback<T extends (...args: any[]) => any>(
+	fn: T,
+	delay: number,
+): [(...args: Parameters<T>) => void, () => void] {
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const fnRef = useRef<T>(fn)
+
+	// Keep fnRef current
+	useEffect(() => {
+		fnRef.current = fn
+	}, [fn])
+
+	// The debounced function
+	const debouncedFn = useCallback(
+		(...args: Parameters<T>) => {
+			// Clear any existing timeout
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+			}
+
+			// Set a new timeout
+			timeoutRef.current = setTimeout(() => {
+				fnRef.current(...args)
+			}, delay)
+		},
+		[delay],
+	)
+
+	// Function to cancel the timeout
+	const cancel = useCallback(() => {
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current)
+			timeoutRef.current = null
+		}
+	}, [])
+
+	// Clean up on unmount
+	useEffect(() => {
+		return cancel
+	}, [cancel])
+
+	return [debouncedFn, cancel]
 }

@@ -158,8 +158,15 @@ export async function saveModeAsYaml(dirPath: string, mode: ModeConfig): Promise
 		// Ensure directory exists
 		await fs.mkdir(dirPath, { recursive: true })
 
+		// Apply trim() only when saving to file - preserves whitespace in UI but keeps files clean
+		const trimmedMode = {
+			...mode,
+			roleDefinition: mode.roleDefinition?.trim() || "",
+			customInstructions: mode.customInstructions?.trim(),
+		}
+
 		// Convert mode to YAML-friendly format
-		const yamlMode = convertModeToYamlFormat(mode)
+		const yamlMode = convertModeToYamlFormat(trimmedMode)
 
 		// Remove properties that shouldn't be in the file
 		const { slug, source: _source, format: _format, ...modeData } = yamlMode

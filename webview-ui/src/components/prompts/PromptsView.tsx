@@ -21,6 +21,7 @@ import { Tab, TabContent, TabHeader } from "../common/Tab"
 import i18next from "i18next"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Trans } from "react-i18next"
+import { useDebouncedCallback } from "@src/utils/useDebounceEffect"
 import {
 	Select,
 	SelectContent,
@@ -81,6 +82,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	// Memoize modes to preserve array order
 	const modes = useMemo(() => getAllModes(customModes), [customModes])
 
+	// Local state for optimistic updates
+	const [localRoleDefinition, setLocalRoleDefinition] = useState("")
+	const [localCustomInstructions, setLocalCustomInstructions] = useState("")
+	const [localCustomModeName, setLocalCustomModeName] = useState("")
+	const [localGlobalCustomInstructions, setLocalGlobalCustomInstructions] = useState(customInstructions || "")
+	const [localSupportPrompt, setLocalSupportPrompt] = useState("")
+	const [localToolGroups, setLocalToolGroups] = useState<GroupEntry[]>([])
+
 	const [testPrompt, setTestPrompt] = useState("")
 	const [isEnhancing, setIsEnhancing] = useState(false)
 	const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -96,6 +105,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [open, setOpen] = useState(false)
 	const [searchValue, setSearchValue] = useState("")
 	const searchInputRef = useRef<HTMLInputElement>(null)
+	const checkboxClickTracker = useRef<{ [key: string]: number }>({}) // Ref to track rapid checkbox clicks
 
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
@@ -184,13 +194,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return customModes?.find(findMode) || modes.find(findMode)
 	}, [visualMode, customModes, modes])
 
-	// Helper function to safely access mode properties
-	const getModeProperty = <T extends keyof ModeConfig>(
-		mode: ModeConfig | undefined,
-		property: T,
-	): ModeConfig[T] | undefined => {
-		return mode?.[property]
-	}
+	// Helper function removed as it's no longer used
 
 	// State for create mode dialog
 	const [newModeName, setNewModeName] = useState("")
@@ -228,6 +232,195 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			resetFormState()
 		}
 	}, [isCreateModeDialogOpen, resetFormState])
+
+	// Reset all editing flags when the selected mode changes
+	// This ensures we start with a clean editing state when switching modes
+	useEffect(() => {
+		// Reset all editing flags to false
+		setIsEditing({
+			roleDefinition: false,
+			customInstructions: false,
+			customModeName: false,
+			globalCustomInstructions: false,
+			supportPrompt: false,
+			toolGroups: false,
+		})
+
+		// Also reset the checkbox click tracker when mode changes
+		checkboxClickTracker.current = {}
+	}, [visualMode])
+
+	// Helper function to safely manage editing state transitions
+	const safelySetEditing = useCallback((field: keyof typeof isEditing, value: boolean) => {
+		setIsEditing((prev) => {
+			// If we're turning off editing and it was already off, don't update state
+			if (!value && !prev[field]) return prev
+			// If we're turning on editing and it was already on, don't update state
+			if (value && prev[field]) return prev
+			// Otherwise update the specific field
+			return { ...prev, [field]: value }
+		})
+	}, [])
+
+	// Helper function to get support prompt value (memoized to avoid dependency issues)
+	const getSupportPromptValue = useCallback(
+		(type: SupportPromptType): string => {
+			return supportPrompt.get(customSupportPrompts, type)
+		},
+		[customSupportPrompts],
+	)
+
+	// Initialize and sync local state with global state when mode changes or global state updates
+	// Track if user is actively editing to prevent overriding local state
+	// Also track pending update timeouts to ensure isEditing remains true until updates complete
+	const [isEditing, setIsEditing] = useState({
+		roleDefinition: false,
+		customInstructions: false,
+		customModeName: false,
+		globalCustomInstructions: false,
+		supportPrompt: false,
+		toolGroups: false,
+	})
+
+	// The editingTimeoutsRef was here and has been removed.
+
+	// Initialize and sync local state with global state when mode changes or global state updates
+	// with improved handling of editing state
+	// Split the large useEffect into separate effects for each field to avoid unnecessary re-renders
+	// and to make the dependency arrays more precise
+
+	// Memoize the global role definition value to ensure it's stable
+	const globalRoleDefinitionValue = useMemo(() => {
+		const customMode = findModeBySlug(visualMode, customModes)
+		const prompt = customModePrompts?.[visualMode] as PromptComponent
+
+		return customMode?.roleDefinition ?? prompt?.roleDefinition ?? getRoleDefinition(visualMode)
+	}, [visualMode, customModes, customModePrompts, findModeBySlug])
+
+	// Role definition synchronization with minimal dependency array
+	useEffect(() => {
+		if (isEditing.roleDefinition) {
+			if (globalRoleDefinitionValue === localRoleDefinition) {
+				setIsEditing((prev) => ({ ...prev, roleDefinition: false }))
+			}
+		} else {
+			if (globalRoleDefinitionValue !== localRoleDefinition) {
+				setLocalRoleDefinition(globalRoleDefinitionValue === undefined ? "" : globalRoleDefinitionValue)
+			}
+		}
+	}, [globalRoleDefinitionValue, localRoleDefinition, isEditing.roleDefinition, setIsEditing, setLocalRoleDefinition])
+
+	// Custom instructions synchronization
+	useEffect(() => {
+		const customMode = findModeBySlug(visualMode, customModes)
+		const prompt = customModePrompts?.[visualMode] as PromptComponent
+
+		const globalInstructions =
+			customMode?.customInstructions ?? prompt?.customInstructions ?? getCustomInstructions(mode, customModes) // Ensure getCustomInstructions is stable or memoized if it's complex
+
+		if (isEditing.customInstructions) {
+			if ((globalInstructions || "") === localCustomInstructions) {
+				setIsEditing((prev) => ({ ...prev, customInstructions: false }))
+			}
+		} else {
+			if ((globalInstructions || "") !== localCustomInstructions) {
+				setLocalCustomInstructions(globalInstructions || "")
+			}
+		}
+	}, [
+		visualMode,
+		customModes,
+		customModePrompts,
+		mode,
+		localCustomInstructions,
+		isEditing.customInstructions,
+		findModeBySlug,
+	])
+
+	// Custom mode name synchronization
+	useEffect(() => {
+		const globalModeName = findModeBySlug(visualMode, customModes)?.name ?? ""
+
+		if (isEditing.customModeName) {
+			if (globalModeName === localCustomModeName) {
+				setIsEditing((prev) => ({ ...prev, customModeName: false }))
+			}
+		} else {
+			if (globalModeName !== localCustomModeName) {
+				setLocalCustomModeName(globalModeName)
+			}
+		}
+	}, [visualMode, customModes, localCustomModeName, isEditing.customModeName, findModeBySlug])
+
+	// Tool groups synchronization with improved stability
+	useEffect(() => {
+		const currentModeConfig = getCurrentMode()
+		const globalToolGroups = currentModeConfig?.groups || []
+
+		// Helper function to normalize groups for comparison
+		const normalizeGroups = (groups: GroupEntry[]) => {
+			return [...groups].sort((a, b) => getGroupName(a).localeCompare(getGroupName(b)))
+		}
+
+		// Sort arrays before stringifying for consistent comparison
+		const normalizedLocalGroups = normalizeGroups(localToolGroups)
+		const normalizedGlobalGroups = normalizeGroups(globalToolGroups)
+
+		const localGroupsStr = JSON.stringify(normalizedLocalGroups)
+		const globalGroupsStr = JSON.stringify(normalizedGlobalGroups)
+
+		// If we're editing, check if global state has caught up with local state
+		if (isEditing.toolGroups) {
+			// If global state matches local state, we can turn off editing mode
+			if (localGroupsStr === globalGroupsStr) {
+				safelySetEditing("toolGroups", false)
+			}
+			// We don't update localToolGroups here because we want to keep the user's changes
+			// The checkbox will show the local state while editing is true
+		}
+		// If we're not editing, sync local state with global state if they differ
+		else if (localGroupsStr !== globalGroupsStr) {
+			setLocalToolGroups(globalToolGroups)
+		}
+	}, [visualMode, customModes, modes, localToolGroups, isEditing.toolGroups, getCurrentMode, safelySetEditing])
+
+	// Sync global custom instructions with improved handling of editing state
+	useEffect(() => {
+		const globalValue = customInstructions || ""
+
+		if (isEditing.globalCustomInstructions) {
+			// If currently editing, check if global state has caught up with local state
+			if (globalValue === localGlobalCustomInstructions) {
+				// Global state matches local optimistic state - editing is complete
+				setIsEditing((prev) => ({ ...prev, globalCustomInstructions: false }))
+			}
+			// Otherwise keep local state as is (user's edits take precedence)
+		} else {
+			// Not editing - global state is source of truth
+			if (globalValue !== localGlobalCustomInstructions) {
+				setLocalGlobalCustomInstructions(globalValue)
+			}
+		}
+	}, [customInstructions, localGlobalCustomInstructions, isEditing.globalCustomInstructions])
+
+	// Sync support prompt with improved handling of editing state
+	useEffect(() => {
+		const globalValue = getSupportPromptValue(activeSupportOption)
+
+		if (isEditing.supportPrompt) {
+			// If currently editing, check if global state has caught up with local state
+			if (globalValue === localSupportPrompt) {
+				// Global state matches local optimistic state - editing is complete
+				setIsEditing((prev) => ({ ...prev, supportPrompt: false }))
+			}
+			// Otherwise keep local state as is (user's edits take precedence)
+		} else {
+			// Not editing - global state is source of truth
+			if (globalValue !== localSupportPrompt) {
+				setLocalSupportPrompt(globalValue)
+			}
+		}
+	}, [activeSupportOption, getSupportPromptValue, localSupportPrompt, isEditing.supportPrompt])
 
 	// Helper function to generate a unique slug from a name
 	const generateSlug = useCallback((name: string, attempt = 0): string => {
@@ -329,31 +522,36 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		setIsCreateModeDialogOpen(true)
 	}, [generateSlug, isNameOrSlugTaken])
 
-	// Handler for group checkbox changes
-	const handleGroupChange = useCallback(
-		(group: ToolGroup, isCustomMode: boolean, customMode: ModeConfig | undefined) =>
-			(e: Event | React.FormEvent<HTMLElement>) => {
-				if (!isCustomMode) return // Prevent changes to built-in modes
-				const target = (e as CustomEvent)?.detail?.target || (e.target as HTMLInputElement)
-				const checked = target.checked
-				const oldGroups = customMode?.groups || []
-				let newGroups: GroupEntry[]
-				if (checked) {
-					newGroups = [...oldGroups, group]
-				} else {
-					newGroups = oldGroups.filter((g) => getGroupName(g) !== group)
-				}
-				if (customMode) {
-					const source = customMode.source || "global"
-					updateCustomMode(customMode.slug, {
-						...customMode,
-						groups: newGroups,
-						source,
-					})
-				}
-			},
-		[updateCustomMode],
+	// Debounced update functions with separate handlers for different update types
+	const [debouncedUpdateCustomMode] = useDebouncedCallback(
+		(slug: string, config: ModeConfig) => {
+			updateCustomMode(slug, config)
+		},
+		250, // Reduced from 400ms to 250ms to improve responsiveness while still batching updates
 	)
+
+	// Dedicated function for global settings to avoid using non-existent mode slugs
+	const [debouncedUpdateGlobalSettings] = useDebouncedCallback(
+		(value: string | undefined) => {
+			vscode.postMessage({
+				type: "customInstructions",
+				text: value,
+			})
+		},
+		300, // 300ms delay
+	)
+
+	// Dedicated function for support prompts to avoid using non-existent mode slugs
+	const [debouncedUpdateSupportPrompt] = useDebouncedCallback(
+		(type: SupportPromptType, value: string | undefined) => {
+			updateSupportPrompt(type, value)
+		},
+		300, // 300ms delay
+	)
+
+	// Note: The handleGroupChange function has been removed as part of the bug fix.
+	// We now directly use the updated localToolGroups in the VSCodeCheckbox onChange handler
+	// to ensure we're always using the latest state when updating the backend.
 
 	// Handle clicks outside the config menu
 	useEffect(() => {
@@ -417,9 +615,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		})
 	}
 
-	const getSupportPromptValue = (type: SupportPromptType): string => {
-		return supportPrompt.get(customSupportPrompts, type)
-	}
+	// Function moved to before the useEffect that depends on it
 
 	const handleTestEnhancement = () => {
 		if (!testPrompt.trim()) return
@@ -593,16 +789,30 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								<div className="flex gap-2">
 									<Input
 										type="text"
-										value={getModeProperty(findModeBySlug(visualMode, customModes), "name") ?? ""}
+										value={localCustomModeName}
 										onChange={(e) => {
+											const newValue = e.target.value
+
+											// Mark as editing to prevent useEffect from overriding local changes
+											setIsEditing((prev) => ({ ...prev, customModeName: true }))
+
+											// Update local state immediately for optimistic UI update
+											setLocalCustomModeName(newValue)
+
 											const customMode = findModeBySlug(visualMode, customModes)
 											if (customMode) {
 												updateCustomMode(visualMode, {
 													...customMode,
-													name: e.target.value,
+													name: newValue,
 													source: customMode.source || "global",
 												})
 											}
+
+											// No timeout here - isEditing will be reset when the global state
+											// catches up with our local state in the useEffect
+										}}
+										onBlur={() => {
+											// Intentionally empty. isEditing state is managed by the corresponding useEffect.
 										}}
 										className="w-full"
 									/>
@@ -645,33 +855,41 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							{t("prompts:roleDefinition.description")}
 						</div>
 						<Textarea
-							value={(() => {
-								const customMode = findModeBySlug(visualMode, customModes)
-								const prompt = customModePrompts?.[visualMode] as PromptComponent
-								return (
-									customMode?.roleDefinition ??
-									prompt?.roleDefinition ??
-									getRoleDefinition(visualMode)
-								)
-							})()}
+							value={localRoleDefinition}
 							onChange={(e) => {
 								const value =
 									(e as unknown as CustomEvent)?.detail?.target?.value ||
 									((e as any).target as HTMLTextAreaElement).value
+
+								// Mark as editing to prevent useEffect from overriding local changes
+								setIsEditing((prev) => ({ ...prev, roleDefinition: true }))
+
+								// Update local state immediately for optimistic UI update
+								setLocalRoleDefinition(value)
+
 								const customMode = findModeBySlug(visualMode, customModes)
 								if (customMode) {
 									// For custom modes, update the JSON file
-									updateCustomMode(visualMode, {
+									debouncedUpdateCustomMode(visualMode, {
 										...customMode,
-										roleDefinition: value.trim() || "",
+										roleDefinition: value || "",
 										source: customMode.source || "global",
 									})
 								} else {
 									// For built-in modes, update the prompts
 									updateAgentPrompt(visualMode, {
-										roleDefinition: value.trim() || undefined,
+										roleDefinition: value || undefined,
 									})
 								}
+
+								// No timeout here - isEditing will be reset when the global state
+								// catches up with our local state in the useEffect
+							}}
+							onBlur={() => {
+								// The onBlur handler should do NOTHING to isEditing.roleDefinition
+								// This is a critical change to fix the UI rollback issue
+								// The useEffect hook will be the sole place where isEditing.roleDefinition
+								// is set to false, and only when the global state confirms the optimistic local state
 							}}
 							className="resize-y w-full"
 							rows={4}
@@ -738,15 +956,107 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 										const currentMode = getCurrentMode()
 										const isCustomMode = findModeBySlug(visualMode, customModes)
 										const customMode = isCustomMode
-										const isGroupEnabled = isCustomMode
-											? customMode?.groups?.some((g) => getGroupName(g) === group)
-											: currentMode?.groups?.some((g) => getGroupName(g) === group)
+										// Determine if the group is enabled based on the source of truth
+										// When editing (isEditing.toolGroups is true), use localToolGroups as the source of truth
+										// Otherwise, use the global state (customMode or currentMode)
+										const isGroupEnabled = isEditing.toolGroups
+											? localToolGroups.some((g) => getGroupName(g) === group)
+											: isCustomMode
+												? customMode?.groups?.some((g) => getGroupName(g) === group)
+												: currentMode?.groups?.some((g) => getGroupName(g) === group)
 
 										return (
 											<VSCodeCheckbox
 												key={group}
 												checked={isGroupEnabled}
-												onChange={handleGroupChange(group, Boolean(isCustomMode), customMode)}
+												onChange={(e: Event | React.FormEvent<HTMLElement>) => {
+													// Use checkboxClickTracker with a more robust approach to prevent duplicate events
+													const now = Date.now()
+													const lastClick = checkboxClickTracker.current[group] || 0
+													const timeSinceLastClick = now - lastClick
+
+													// If the last click was less than 100ms ago, ignore this event
+													// Reduced from 500ms to 100ms to allow legitimate quick interactions
+													if (timeSinceLastClick < 100) {
+														return
+													}
+
+													// Update the last click time
+													checkboxClickTracker.current[group] = now
+
+													// Determine the checked state reliably
+													let checked: boolean | undefined = undefined
+
+													// Try to get checked state from CustomEvent.detail first (most reliable for VSCodeCheckbox)
+													if (
+														(e as CustomEvent)?.detail &&
+														typeof (e as CustomEvent)?.detail?.checked === "boolean"
+													) {
+														checked = (e as CustomEvent).detail.checked
+													}
+													// Fallback to target.checked if detail is not available
+													else if (
+														e.target &&
+														typeof (e.target as HTMLInputElement).checked === "boolean"
+													) {
+														checked = (e.target as HTMLInputElement).checked
+													}
+
+													// If we couldn't determine the checked state, return
+													if (typeof checked !== "boolean") {
+														return
+													}
+
+													// Important: Check if this would actually change the state before proceeding
+													const wouldAdd =
+														checked &&
+														!localToolGroups.some((g) => getGroupName(g) === group)
+													const wouldRemove =
+														!checked &&
+														localToolGroups.some((g) => getGroupName(g) === group)
+
+													if (!wouldAdd && !wouldRemove) {
+														return
+													}
+
+													// 1. First update local state for immediate UI feedback
+													safelySetEditing("toolGroups", true)
+
+													// Create new groups array based on checked state
+													let newLocalGroups: GroupEntry[]
+													if (checked) {
+														// Only add if not already present
+														if (!localToolGroups.some((g) => getGroupName(g) === group)) {
+															newLocalGroups = [...localToolGroups, group]
+														} else {
+															newLocalGroups = [...localToolGroups] // Create a new array reference but with same content
+														}
+													} else {
+														// Remove the group
+														newLocalGroups = localToolGroups.filter(
+															(g) => getGroupName(g) !== group,
+														)
+														// If no change would occur, create a new array reference anyway
+														if (newLocalGroups.length === localToolGroups.length) {
+															newLocalGroups = [...localToolGroups]
+														}
+													}
+
+													// Update local state with the new array reference to ensure React detects the change
+													setLocalToolGroups(newLocalGroups)
+
+													// 2. Then schedule backend update with the direct new state
+													// Instead of calling handleGroupChange which uses outdated customMode.groups,
+													// directly use the newly computed localToolGroups for the update
+													if (isCustomMode && customMode) {
+														const source = customMode.source || "global"
+														debouncedUpdateCustomMode(customMode.slug, {
+															...customMode, // Spread existing customMode properties
+															groups: newLocalGroups, // Pass the newly computed local state
+															source,
+														})
+													}
+												}}
 												disabled={!isCustomMode}>
 												{t(`prompts:tools.toolNames.${group}`)}
 												{group === "edit" && (
@@ -827,25 +1137,24 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							})}
 						</div>
 						<Textarea
-							value={(() => {
-								const customMode = findModeBySlug(visualMode, customModes)
-								const prompt = customModePrompts?.[visualMode] as PromptComponent
-								return (
-									customMode?.customInstructions ??
-									prompt?.customInstructions ??
-									getCustomInstructions(mode, customModes)
-								)
-							})()}
+							value={localCustomInstructions}
 							onChange={(e) => {
 								const value =
 									(e as unknown as CustomEvent)?.detail?.target?.value ||
 									((e as any).target as HTMLTextAreaElement).value
+
+								// Mark as editing to prevent useEffect from overriding local changes
+								setIsEditing((prev) => ({ ...prev, customInstructions: true }))
+
+								// Update local state immediately for optimistic UI update
+								setLocalCustomInstructions(value)
+
 								const customMode = findModeBySlug(visualMode, customModes)
 								if (customMode) {
 									// For custom modes, update the JSON file
-									updateCustomMode(visualMode, {
+									debouncedUpdateCustomMode(visualMode, {
 										...customMode,
-										customInstructions: value.trim() || undefined,
+										customInstructions: value || undefined,
 										source: customMode.source || "global",
 									})
 								} else {
@@ -853,9 +1162,16 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									const existingPrompt = customModePrompts?.[visualMode] as PromptComponent
 									updateAgentPrompt(visualMode, {
 										...existingPrompt,
-										customInstructions: value.trim(),
+										customInstructions: value,
 									})
 								}
+
+								// No timeout here - isEditing will be reset when the global state
+								// catches up with our local state in the useEffect
+							}}
+							onBlur={() => {
+								// Do not set editing to false here
+								// Let the useEffect handle this once the global state catches up with local state
 							}}
 							rows={4}
 							className="w-full resize-y"
@@ -981,16 +1297,29 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						})}
 					</div>
 					<Textarea
-						value={customInstructions}
+						value={localGlobalCustomInstructions}
 						onChange={(e) => {
 							const value =
 								(e as unknown as CustomEvent)?.detail?.target?.value ||
 								((e as any).target as HTMLTextAreaElement).value
+
+							// Mark as editing to prevent useEffect from overriding local changes
+							setIsEditing((prev) => ({ ...prev, globalCustomInstructions: true }))
+
+							// Update local state immediately for optimistic UI update
+							setLocalGlobalCustomInstructions(value)
+
+							// Update global state
 							setCustomInstructions(value || undefined)
-							vscode.postMessage({
-								type: "customInstructions",
-								text: value.trim() || undefined,
-							})
+
+							// Use dedicated debounced function for global settings
+							debouncedUpdateGlobalSettings(value || undefined)
+
+							// No timeout here - isEditing will be reset when the global state
+							// catches up with our local state in the useEffect
+						}}
+						onBlur={() => {
+							// Intentionally empty. isEditing state is managed by the corresponding useEffect.
 						}}
 						rows={4}
 						className="w-full resize-y"
@@ -1059,13 +1388,26 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</div>
 
 						<Textarea
-							value={getSupportPromptValue(activeSupportOption)}
+							value={localSupportPrompt}
 							onChange={(e) => {
 								const value =
 									(e as unknown as CustomEvent)?.detail?.target?.value ||
 									((e as any).target as HTMLTextAreaElement).value
-								const trimmedValue = value.trim()
-								updateSupportPrompt(activeSupportOption, trimmedValue || undefined)
+
+								// Mark as editing to prevent useEffect from overriding local changes
+								setIsEditing((prev) => ({ ...prev, supportPrompt: true }))
+
+								// Update local state immediately for optimistic UI update
+								setLocalSupportPrompt(value)
+
+								// Use dedicated debounced function for support prompts
+								debouncedUpdateSupportPrompt(activeSupportOption, value || undefined)
+
+								// No timeout here - isEditing will be reset when the global state
+								// catches up with our local state in the useEffect
+							}}
+							onBlur={() => {
+								// Intentionally empty. isEditing state is managed by the corresponding useEffect.
 							}}
 							rows={6}
 							className="resize-y w-full"

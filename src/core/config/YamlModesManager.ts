@@ -198,9 +198,16 @@ export class YamlModesManager {
 	 * Update a mode in YAML format
 	 */
 	public async updateYamlMode(slug: string, config: ModeConfig): Promise<void> {
+		// 編集ロックのタイムアウトを設定（5秒後に自動解除）
+		const lockTimeout = setTimeout(() => {
+			this.editLock.delete(slug)
+			logger.debug(`Auto-releasing edit lock for ${slug} after timeout`)
+		}, 5000)
+
 		try {
 			// Lock the mode to prevent file watcher from reloading while we're editing
 			this.editLock.add(slug)
+			logger.debug(`Edit lock acquired for ${slug}`)
 
 			const isProjectMode = config.source === "project"
 			let targetDir: string
@@ -230,13 +237,19 @@ export class YamlModesManager {
 				this.clearCache()
 				await this.onUpdate()
 			})
+
+			// 成功したらタイムアウトをクリア
+			clearTimeout(lockTimeout)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			logger.error("Failed to update YAML mode", { slug, error: errorMessage })
 			vscode.window.showErrorMessage(`Failed to update YAML mode: ${errorMessage}`)
 		} finally {
-			// Unlock the mode
-			this.editLock.delete(slug)
+			// 編集ロックを解除する前に少し待機（ファイル変更イベントが処理される時間を確保）
+			setTimeout(() => {
+				this.editLock.delete(slug)
+				logger.debug(`Edit lock released for ${slug}`)
+			}, 500)
 		}
 	}
 
