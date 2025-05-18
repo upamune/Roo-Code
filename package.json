@@ -459,6 +459,7 @@
 		"jest-simple-dot-reporter": "^1.0.5",
 		"knip": "^5.44.4",
 		"lint-staged": "^15.2.11",
+		"memfs": "^4.17.2",
 		"mkdirp": "^3.0.1",
 		"nock": "^14.0.4",
 		"npm-run-all2": "^8.0.1",

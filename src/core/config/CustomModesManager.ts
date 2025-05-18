@@ -142,7 +142,7 @@ export class CustomModesManager {
 					const errorMessage =
 						"Invalid custom modes format. Please ensure your settings follow the correct JSON format."
 
-					let config: any
+					let config: { customModes: ModeConfig[] }
 
 					try {
 						config = JSON.parse(content)
@@ -336,7 +336,7 @@ export class CustomModesManager {
 			content = JSON.stringify({ customModes: [] })
 		}
 
-		let settings
+		let settings: { customModes: ModeConfig[] }
 
 		try {
 			settings = JSON.parse(content)

@@ -146,7 +146,7 @@ jest.mock("vscode", () => {
 				stat: jest.fn().mockResolvedValue({ type: 1 }), // FileType.File = 1
 			},
 			onDidSaveTextDocument: jest.fn(() => mockDisposable),
-			getConfiguration: jest.fn(() => ({ get: (key: string, defaultValue: any) => defaultValue })),
+			getConfiguration: jest.fn(() => ({ get: (key: string, defaultValue: unknown) => defaultValue })),
 		},
 		env: {
 			uriScheme: "vscode",
@@ -157,6 +157,14 @@ jest.mock("vscode", () => {
 			from: jest.fn(),
 		},
 		TabInputText: jest.fn(),
+		ExtensionKind: { Workspace: 1, UI: 2, Web: 3 },
+		ExtensionMode: { Test: 2 },
+		RelativePattern: class {
+			constructor(
+				public base: unknown,
+				public pattern: string,
+			) {}
+		},
 	}
 })
 
@@ -176,6 +184,20 @@ describe("Cline", () => {
 		// Setup mock extension context
 		const storageUri = {
 			fsPath: path.join(os.tmpdir(), "test-storage"),
+			scheme: "file",
+			authority: "",
+			path: path.join(os.tmpdir(), "test-storage"),
+			query: "",
+			fragment: "",
+			with: jest.fn().mockReturnThis(),
+			toString: jest.fn().mockReturnValue(path.join(os.tmpdir(), "test-storage")),
+			toJSON: jest.fn().mockReturnValue({
+				scheme: "file",
+				authority: "",
+				path: path.join(os.tmpdir(), "test-storage"),
+				query: "",
+				fragment: "",
+			}),
 		}
 
 		mockExtensionContext = {
@@ -201,6 +223,7 @@ describe("Cline", () => {
 				}),
 				update: jest.fn().mockImplementation((_key, _value) => Promise.resolve()),
 				keys: jest.fn().mockReturnValue([]),
+				setKeysForSync: jest.fn(),
 			},
 			globalStorageUri: storageUri,
 			workspaceState: {
@@ -212,16 +235,82 @@ describe("Cline", () => {
 				get: jest.fn().mockImplementation((_key) => Promise.resolve(undefined)),
 				store: jest.fn().mockImplementation((_key, _value) => Promise.resolve()),
 				delete: jest.fn().mockImplementation((_key) => Promise.resolve()),
+				onDidChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
 			},
 			extensionUri: {
 				fsPath: "/mock/extension/path",
+				scheme: "file",
+				authority: "",
+				path: "/mock/extension/path",
+				query: "",
+				fragment: "",
+				with: jest.fn().mockReturnThis(),
+				toString: jest.fn().mockReturnValue("/mock/extension/path"),
+				toJSON: jest.fn().mockReturnValue({
+					scheme: "file",
+					authority: "",
+					path: "/mock/extension/path",
+					query: "",
+					fragment: "",
+				}),
+			},
+			extensionPath: "/mock/extension/path",
+			storageUri: storageUri,
+			storagePath: storageUri.fsPath,
+			globalStoragePath: storageUri.fsPath,
+			logUri: storageUri,
+			logPath: storageUri.fsPath,
+			subscriptions: [],
+			extensionMode: vscode.ExtensionMode.Test,
+			environmentVariableCollection: {
+				persistent: true,
+				replace: jest.fn(),
+				append: jest.fn(),
+				prepend: jest.fn(),
+				clear: jest.fn(),
+				get: jest.fn(),
+				forEach: jest.fn(),
+				getScoped: jest.fn().mockReturnValue({} as unknown as vscode.EnvironmentVariableCollection),
+				description: undefined,
+				delete: jest.fn(),
+				[Symbol.iterator]: function* () {
+					yield* []
+				},
+			},
+			languageModelAccessInformation: {
+				onDidChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+				canSendRequest: jest.fn().mockReturnValue(true),
 			},
 			extension: {
+				id: "test-extension",
+				extensionUri: {
+					fsPath: "/mock/extension/path",
+					scheme: "file",
+					authority: "",
+					path: "/mock/extension/path",
+					query: "",
+					fragment: "",
+					with: jest.fn().mockReturnThis(),
+					toString: jest.fn().mockReturnValue("/mock/extension/path"),
+					toJSON: jest.fn().mockReturnValue({
+						scheme: "file",
+						authority: "",
+						path: "/mock/extension/path",
+						query: "",
+						fragment: "",
+					}),
+				},
+				extensionPath: "/mock/extension/path",
+				isActive: true,
 				packageJSON: {
 					version: "1.0.0",
 				},
+				exports: undefined,
+				activate: jest.fn().mockResolvedValue(undefined),
+				extensionKind: vscode.ExtensionKind.Workspace,
 			},
-		} as unknown as vscode.ExtensionContext
+			asAbsolutePath: jest.fn().mockImplementation((p: string) => p),
+		}
 
 		// Setup mock output channel
 		mockOutputChannel = {

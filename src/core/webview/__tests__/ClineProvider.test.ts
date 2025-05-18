@@ -18,6 +18,21 @@ jest.mock("../../prompts/sections/custom-instructions")
 jest.mock("vscode")
 jest.mock("delay")
 
+// Mock CustomModesManager
+jest.mock("../../config/CustomModesManager", () => {
+	return {
+		CustomModesManager: jest.fn().mockImplementation(() => ({
+			updateCustomMode: jest.fn().mockResolvedValue(undefined),
+			getCustomModes: jest.fn().mockResolvedValue([]),
+			dispose: jest.fn(),
+			ensureSettingsDirectoryExists: jest.fn().mockResolvedValue("/mock/settings/directory"),
+			getCustomModesFilePath: jest.fn().mockResolvedValue("/mock/settings/directory/custom-modes.json"),
+			getWorkspaceRoomodes: jest.fn().mockResolvedValue(null),
+			watchCustomModesFiles: jest.fn().mockResolvedValue(undefined),
+		})),
+	}
+})
+
 // Mock BrowserSession
 jest.mock("../../../services/browser/BrowserSession", () => ({
 	BrowserSession: jest.fn().mockImplementation(() => ({
@@ -122,7 +137,7 @@ jest.mock("vscode", () => ({
 	WebviewView: jest.fn(),
 	Uri: {
 		joinPath: jest.fn(),
-		file: jest.fn(),
+		file: jest.fn().mockImplementation((p) => ({ fsPath: p })),
 	},
 	CodeActionKind: {
 		QuickFix: { value: "quickfix" },
@@ -144,6 +159,13 @@ jest.mock("vscode", () => ({
 		onDidChangeTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
 		onDidOpenTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
 		onDidCloseTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+		createFileSystemWatcher: jest.fn().mockImplementation(() => ({
+			onDidChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+			onDidCreate: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+			onDidDelete: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+			dispose: jest.fn(),
+		})),
+		workspaceFolders: [{ uri: { fsPath: "/workspace" } }],
 	},
 	env: {
 		uriScheme: "vscode",
@@ -153,6 +175,17 @@ jest.mock("vscode", () => ({
 		Production: 1,
 		Development: 2,
 		Test: 3,
+	},
+	ExtensionKind: {
+		Workspace: 1,
+		UI: 2,
+		Web: 3,
+	},
+	RelativePattern: class {
+		constructor(
+			public base: unknown,
+			public pattern: string,
+		) {}
 	},
 }))
 
@@ -297,6 +330,10 @@ describe("ClineProvider", () => {
 			updateCustomMode: jest.fn().mockResolvedValue(undefined),
 			getCustomModes: jest.fn().mockResolvedValue([]),
 			dispose: jest.fn(),
+			ensureSettingsDirectoryExists: jest.fn().mockResolvedValue("/mock/settings/directory"),
+			getCustomModesFilePath: jest.fn().mockResolvedValue("/mock/settings/directory/custom-modes.json"),
+			getWorkspaceRoomodes: jest.fn().mockResolvedValue(null),
+			watchCustomModesFiles: jest.fn().mockResolvedValue(undefined),
 		}
 
 		// Mock output channel

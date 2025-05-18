@@ -1312,7 +1312,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							// Update global state
 							setCustomInstructions(value || undefined)
 
+							// Send message directly to extension
+							vscode.postMessage({
+								type: "customInstructions",
+								text: value || undefined,
+							})
+
 							// Use dedicated debounced function for global settings
+							// This is now redundant with the direct postMessage above, but keeping for backward compatibility
 							debouncedUpdateGlobalSettings(value || undefined)
 
 							// No timeout here - isEditing will be reset when the global state
